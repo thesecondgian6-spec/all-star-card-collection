@@ -161,3 +161,35 @@ table.admtable td{ padding:9px 10px; border-bottom:1px solid var(--border); vert
 .auth-tabswitch button.active{ color:var(--text); border-color:var(--rose); }
 .field-spacer{ margin-bottom:12px; }
 .errmsg{ color:#e15b5b; font-size:12.5px; margin:8px 0; }
+
+@keyframes cv-shake{
+  10%,90%{ transform:translate3d(-1px,0,0); }
+  20%,80%{ transform:translate3d(2px,0,0); }
+  30%,50%,70%{ transform:translate3d(-4px,0,0); }
+  40%,60%{ transform:translate3d(4px,0,0); }
+}
+
+.quest-card{ background:var(--surface-2); border:1px solid var(--border); border-radius:14px; padding:14px 16px; display:flex; flex-direction:column; gap:8px; }
+.quest-card.done{ border-color:var(--gold); box-shadow:0 0 0 1px rgba(232,184,75,0.25) inset; }
+.quest-card .qtop{ display:flex; justify-content:space-between; align-items:center; gap:8px; }
+.quest-card .qdesc{ font-size:13.5px; font-weight:600; }
+.quest-card .qreward{ font-size:11.5px; color:var(--gold); font-family:'Space Mono',monospace; white-space:nowrap; }
+.quest-bar{ height:7px; border-radius:6px; background:var(--bg-2); overflow:hidden; }
+.quest-bar > div{ height:100%; background:linear-gradient(90deg,var(--rose),var(--gold)); transition:width .3s ease; }
+.quest-card .qprogress{ font-size:11px; color:var(--text-faint); font-family:'Space Mono',monospace; }
+
+@keyframes cv-pulse-legendary{
+  0%{ box-shadow:0 0 0 0 rgba(245,182,66,0.55); }
+  70%{ box-shadow:0 0 0 40px rgba(245,182,66,0); }
+  100%{ box-shadow:0 0 0 0 rgba(245,182,66,0); }
+}
+@keyframes cv-pulse-mythic{
+  0%{ box-shadow:0 0 0 0 rgba(244,86,140,0.6); }
+  70%{ box-shadow:0 0 0 55px rgba(244,86,140,0); }
+  100%{ box-shadow:0 0 0 0 rgba(244,86,140,0); }
+}
+.modal.pulse-legendary{ animation:cv-pulse-legendary 1s ease-out 2; }
+.modal.pulse-mythic{ animation:cv-pulse-mythic 0.9s ease-out 3; }
+
+.sound-toggle{ background:var(--surface-2); border:1px solid var(--border); color:var(--text-dim); width:34px; height:34px; border-radius:9px; display:flex; align-items:center; justify-content:center; font-size:15px; }
+.sound-toggle.off{ opacity:0.45; }
