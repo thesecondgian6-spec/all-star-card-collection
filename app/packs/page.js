@@ -1,10 +1,12 @@
 'use client';
 import { useEffect, useState, useCallback } from 'react';
 import AppShell from '../../components/AppShell';
+import DailyQuests from '../../components/DailyQuests';
 import { supabase } from '../../lib/supabaseClient';
 import { useAuth } from '../../lib/AuthProvider';
 import { usePlayerState } from '../../lib/usePlayerState';
 import { RARITIES, RARITY_MAP, fmt } from '../../lib/gameData';
+import { playFlip, celebrateRarity, isSoundEnabled, setSoundEnabled } from '../../lib/effects';
 
 export default function PacksPage() {
   const { user } = useAuth();
@@ -16,6 +18,19 @@ export default function PacksPage() {
   const [opening, setOpening] = useState(null);
   const [history, setHistory] = useState([]);
   const [toast, setToast] = useState('');
+  const [soundOn, setSoundOn] = useState(true);
+
+  useEffect(() => { setSoundOn(isSoundEnabled()); }, []);
+  function toggleSound() {
+    const next = !soundOn;
+    setSoundOn(next);
+    setSoundEnabled(next);
+  }
+
+  const bestRarity = (results) => {
+    const order = RARITIES.map((r) => r.id);
+    return results.reduce((best, r) => (order.indexOf(r.rarity) > order.indexOf(best) ? r.rarity : best), 'common');
+  };
 
   const load = useCallback(async () => {
     const [{ data: packData }, { data: seriesData }, { data: histData }] = await Promise.all([
@@ -30,6 +45,20 @@ export default function PacksPage() {
 
   useEffect(() => { load(); }, [load]);
 
+  const [pulseClass, setPulseClass] = useState('');
+
+  useEffect(() => {
+    if (reveal && reveal.length > 0 && revealedCount >= reveal.length) {
+      const rarity = bestRarity(reveal);
+      celebrateRarity(rarity);
+      if (rarity === 'legendary' || rarity === 'mythic') {
+        setPulseClass('pulse-' + rarity);
+        setTimeout(() => setPulseClass(''), 3000);
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [revealedCount, reveal]);
+
   async function open(pack) {
     if ((playerState?.coins || 0) < pack.cost) { flashToast("You don't have enough coins for that pack yet."); return; }
     setOpening(pack.id);
@@ -41,7 +70,8 @@ export default function PacksPage() {
     reloadPlayerState();
     load();
     supabase.rpc('check_achievements');
-    (data || []).forEach((_, i) => setTimeout(() => setRevealedCount((c) => c + 1), 260 * i + 200));
+    const results = data || [];
+    results.forEach((_, i) => setTimeout(() => { setRevealedCount((c) => c + 1); playFlip(); }, 260 * i + 200));
   }
 
   function flashToast(msg) { setToast(msg); setTimeout(() => setToast(''), 3200); }
@@ -49,8 +79,15 @@ export default function PacksPage() {
   return (
     <AppShell coins={playerState?.coins} gems={playerState?.gems}>
       <div className="panel">
-        <h2>Open Packs</h2>
-        <p className="sub">Spend coins to roll for new cards. Better packs, better odds.</p>
+        <div className="row" style={{ justifyContent: 'space-between', alignItems: 'flex-start' }}>
+          <div>
+            <h2>Open Packs</h2>
+            <p className="sub">Spend coins to roll for new cards. Better packs, better odds.</p>
+          </div>
+          <button className={`sound-toggle ${soundOn ? '' : 'off'}`} onClick={toggleSound} title={soundOn ? 'Mute sound' : 'Unmute sound'}>
+            {soundOn ? '🔊' : '🔇'}
+          </button>
+        </div>
         <div className="pack-grid">
           {packs.map((pack) => {
             const s = pack.series_filter ? series.find((x) => x.id === pack.series_filter) : null;
@@ -78,6 +115,11 @@ export default function PacksPage() {
         </div>
       </div>
 
+      <DailyQuests onReward={(r) => {
+        reloadPlayerState();
+        flashToast(`Quest complete! +${fmt(r.coin_reward)} coins, +${fmt(r.gem_reward)} gems`);
+      }} />
+
       <div className="panel">
         <h2>Recent Pulls</h2>
         {history.length === 0 ? <p className="muted">Open a pack to see your pull history here.</p> : (
@@ -94,7 +136,7 @@ export default function PacksPage() {
 
       {reveal && (
         <div className="modal-bg" onClick={(e) => { if (e.target === e.currentTarget) { setReveal(null); } }}>
-          <div className="modal">
+          <div className={`modal ${pulseClass}`}>
             <h2>Pack Results</h2>
             <p className="sub">Tap anywhere to reveal faster.</p>
             <div className="reveal-stage" onClick={() => setRevealedCount(reveal.length)}>
