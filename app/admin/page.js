@@ -37,7 +37,7 @@ export default function AdminPage() {
 
 function AdminBody() {
   const [tab, setTab] = useState('series');
-  const tabs = ['series', 'cards', 'packs', 'upgrades', 'achievements'];
+  const tabs = ['series', 'cards', 'packs', 'upgrades', 'achievements', 'quests'];
   return (
     <>
       <div className="admin-tabs">
@@ -50,6 +50,7 @@ function AdminBody() {
       {tab === 'packs' && <PacksAdmin />}
       {tab === 'upgrades' && <UpgradesAdmin />}
       {tab === 'achievements' && <AchievementsAdmin />}
+      {tab === 'quests' && <QuestsAdmin />}
     </>
   );
 }
@@ -418,6 +419,88 @@ function UpgradesAdmin() {
   );
 }
 
+/* ---------------- QUESTS ---------------- */
+function QuestsAdmin() {
+  const [rows, setRows] = useState([]);
+  const [form, setForm] = useState(null);
+  const [toast, flash] = useToast();
+  const load = useCallback(async () => { const { data } = await supabase.from('quest_templates').select('*'); setRows(data || []); }, []);
+  useEffect(() => { load(); }, [load]);
+
+  function newForm() { setForm({ id: '', description: '', quest_type: 'open_packs', target_value: 3, coin_reward: 100, gem_reward: 2, weight: 1, isNew: true }); }
+  function editForm(r) { setForm({ ...r, isNew: false }); }
+
+  async function save() {
+    if (!form.description.trim()) { flash('Quest needs a description.'); return; }
+    const id = form.isNew ? (form.id.trim() || form.description.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 40)) : form.id;
+    const payload = {
+      id, description: form.description.trim(), quest_type: form.quest_type,
+      target_value: Number(form.target_value) || 1, coin_reward: Number(form.coin_reward) || 0,
+      gem_reward: Number(form.gem_reward) || 0, weight: Number(form.weight) || 1,
+    };
+    const { error } = form.isNew ? await supabase.from('quest_templates').insert(payload) : await supabase.from('quest_templates').update(payload).eq('id', form.id);
+    if (error) { flash('Save failed: ' + error.message); return; }
+    setForm(null); load();
+  }
+  async function del(id) {
+    if (!confirm('Delete this quest? Any players currently doing it today will lose that progress.')) return;
+    const { error } = await supabase.from('quest_templates').delete().eq('id', id);
+    if (error) { flash('Delete failed: ' + error.message); return; }
+    load();
+  }
+
+  return (
+    <>
+      <p className="muted" style={{ marginBottom: 10 }}>Every player gets 3 random quests per day from this pool. Higher weight = more likely to be picked.</p>
+      <div className="row" style={{ justifyContent: 'flex-end', marginBottom: 10 }}>
+        <button className="btn small" onClick={newForm}>+ Add Quest</button>
+      </div>
+      <table className="admtable">
+        <thead><tr><th>Description</th><th>Type</th><th>Target</th><th>Reward</th><th>Weight</th><th></th></tr></thead>
+        <tbody>
+          {rows.map((q) => (
+            <tr key={q.id}>
+              <td>{q.description}</td><td>{q.quest_type}</td><td className="mono">{q.target_value}</td>
+              <td className="mono">🪙{q.coin_reward} 💎{q.gem_reward}</td><td>{q.weight}</td>
+              <td className="row">
+                <button className="btn small ghost" onClick={() => editForm(q)}>Edit</button>
+                <button className="btn small danger" onClick={() => del(q.id)}>Delete</button>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      {rows.length === 0 && <div className="empty">No quest templates yet.</div>}
+      {form && (
+        <div className="modal-bg" onClick={(e) => e.target === e.currentTarget && setForm(null)}>
+          <div className="modal">
+            <h2>{form.isNew ? 'Add' : 'Edit'} Quest</h2>
+            <div className="form-grid">
+              <div className="field" style={{ gridColumn: '1/-1' }}><label>Description</label><input value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} placeholder="e.g. Open 3 packs" /></div>
+              <div className="field">
+                <label>Type</label>
+                <select value={form.quest_type} onChange={(e) => setForm({ ...form, quest_type: e.target.value })}>
+                  <option value="open_packs">Open Packs</option>
+                  <option value="collect_coins">Collect Coins</option>
+                  <option value="collect_clicks">Tap-to-Collect Count</option>
+                </select>
+              </div>
+              <div className="field"><label>Target Value</label><input type="number" value={form.target_value} onChange={(e) => setForm({ ...form, target_value: e.target.value })} /></div>
+              <div className="field"><label>Coin Reward</label><input type="number" value={form.coin_reward} onChange={(e) => setForm({ ...form, coin_reward: e.target.value })} /></div>
+              <div className="field"><label>Gem Reward</label><input type="number" value={form.gem_reward} onChange={(e) => setForm({ ...form, gem_reward: e.target.value })} /></div>
+              <div className="field"><label>Weight (selection odds)</label><input type="number" step="0.1" value={form.weight} onChange={(e) => setForm({ ...form, weight: e.target.value })} /></div>
+            </div>
+            <div className="row" style={{ justifyContent: 'flex-end' }}>
+              <button className="btn ghost" onClick={() => setForm(null)}>Cancel</button>
+              <button className="btn" onClick={save}>Save Quest</button>
+            </div>
+          </div>
+        </div>
+      )}
+      {toast && <div className="toast">{toast}</div>}
+    </>
+  );
+}
 /* ---------------- ACHIEVEMENTS ---------------- */
 function AchievementsAdmin() {
   const [rows, setRows] = useState([]);
