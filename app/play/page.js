@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useMemo, useState, useCallback } from 'react';
 import AppShell from '../../components/AppShell';
+import DailyQuests from '../../components/DailyQuests';
 import { supabase } from '../../lib/supabaseClient';
 import { useAuth } from '../../lib/AuthProvider';
 import { usePlayerState } from '../../lib/usePlayerState';
@@ -129,6 +130,11 @@ export default function PlayPage() {
           <button className="btn full" onClick={() => collectAll(false)}>Collect All</button>
         </div>
       </div>
+
+      <DailyQuests onReward={(r) => {
+        reloadPlayerState();
+        flashToast(`Quest complete! +${fmt(r.coin_reward)} coins, +${fmt(r.gem_reward)} gems`);
+      }} />
 
       <div className="panel">
         <h2>Your Binder</h2>
