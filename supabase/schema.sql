@@ -67,6 +67,16 @@ create table if not exists achievements (
   title text -- profile title unlocked, null if none
 );
 
+create table if not exists quest_templates (
+  id text primary key,
+  description text not null,
+  quest_type text not null check (quest_type in ('open_packs','collect_coins','collect_clicks')),
+  target_value numeric not null,
+  coin_reward numeric not null default 0,
+  gem_reward numeric not null default 0,
+  weight numeric not null default 1 -- higher weight = more likely to be picked for a given day
+);
+
 -- ============================================================================
 -- PLAYER TABLES (private to each user)
 -- ============================================================================
@@ -119,6 +129,22 @@ create table if not exists player_achievements (
   primary key (user_id, achievement_id)
 );
 
+create table if not exists player_daily_quests (
+  user_id uuid not null references auth.users(id) on delete cascade,
+  quest_date date not null,
+  template_id text not null references quest_templates(id) on delete cascade,
+  description text not null,      -- snapshotted at assignment time so admin edits don't retroactively change active quests
+  quest_type text not null,
+  progress numeric not null default 0,
+  target numeric not null,
+  coin_reward numeric not null default 0,
+  gem_reward numeric not null default 0,
+  completed boolean not null default false,
+  claimed boolean not null default false,
+  primary key (user_id, quest_date, template_id)
+);
+create index if not exists idx_player_daily_quests_today on player_daily_quests(user_id, quest_date);
+
 create table if not exists pull_history (
   id bigint generated always as identity primary key,
   user_id uuid not null references auth.users(id) on delete cascade,
@@ -138,6 +164,8 @@ alter table cards enable row level security;
 alter table packs enable row level security;
 alter table upgrades enable row level security;
 alter table achievements enable row level security;
+alter table quest_templates enable row level security;
+alter table player_daily_quests enable row level security;
 alter table profiles enable row level security;
 alter table player_state enable row level security;
 alter table player_cards enable row level security;
@@ -147,7 +175,7 @@ alter table pull_history enable row level security;
 
 -- helper: is the current user an admin?
 create or replace function is_admin() returns boolean
-language sql security definer stable as $$
+language sql security definer stable set search_path = public, pg_temp as $$
   select coalesce((select is_admin from profiles where id = auth.uid()), false);
 $$;
 
@@ -167,6 +195,11 @@ create policy "upgrades admin write" on upgrades for all using (is_admin()) with
 create policy "achievements read all" on achievements for select using (true);
 create policy "achievements admin write" on achievements for all using (is_admin()) with check (is_admin());
 
+create policy "quest_templates read all" on quest_templates for select using (true);
+create policy "quest_templates admin write" on quest_templates for all using (is_admin()) with check (is_admin());
+
+create policy "player_daily_quests select own" on player_daily_quests for select using (auth.uid() = user_id);
+
 -- profiles: readable by anyone (needed for showcase/leaderboard-style views), writable only by owner
 create policy "profiles read all" on profiles for select using (true);
 create policy "profiles insert own" on profiles for insert with check (auth.uid() = id);
@@ -184,7 +217,7 @@ create policy "pull_history select own" on pull_history for select using (auth.u
 -- ============================================================================
 
 create or replace function handle_new_user() returns trigger
-language plpgsql security definer as $$
+language plpgsql security definer set search_path = public, pg_temp as $$
 begin
   insert into profiles (id, username, is_guest)
     values (new.id, 'Player' || substr(new.id::text, 1, 6), coalesce(new.is_anonymous, false));
@@ -202,9 +235,69 @@ create trigger on_auth_user_created
 -- GAME LOGIC FUNCTIONS (SECURITY DEFINER — the only way currency/cards change)
 -- ============================================================================
 
+-- Assigns today's 3 quests to the player if they don't have any yet. Safe to call every time the app loads.
+create or replace function ensure_daily_quests() returns void
+language plpgsql security definer set search_path = public, pg_temp as $$
+declare
+  v_user uuid := auth.uid();
+  v_count int;
+  t record;
+begin
+  if v_user is null then raise exception 'not authenticated'; end if;
+  select count(*) into v_count from player_daily_quests where user_id = v_user and quest_date = current_date;
+  if v_count > 0 then return; end if;
+
+  for t in
+    select * from quest_templates order by random() * greatest(weight, 0.01) desc limit 3
+  loop
+    insert into player_daily_quests (user_id, quest_date, template_id, description, quest_type, progress, target, coin_reward, gem_reward)
+    values (v_user, current_date, t.id, t.description, t.quest_type, 0, t.target_value, t.coin_reward, t.gem_reward)
+    on conflict do nothing;
+  end loop;
+end;
+$$;
+
+-- Adds progress toward any of today's in-progress quests matching p_type. Called internally by
+-- open_pack / collect_card / collect_all — never exposed directly to the client.
+create or replace function increment_quest_progress(p_user uuid, p_type text, p_amount numeric) returns void
+language plpgsql security definer set search_path = public, pg_temp as $$
+begin
+  if p_amount <= 0 then return; end if;
+  update player_daily_quests
+    set progress = least(target, progress + p_amount),
+        completed = (progress + p_amount) >= target
+    where user_id = p_user and quest_date = current_date and quest_type = p_type and not completed;
+end;
+$$;
+
+-- Claims the coin/gem reward for a completed, unclaimed quest.
+create or replace function claim_quest_reward(p_template_id text) returns jsonb
+language plpgsql security definer set search_path = public, pg_temp as $$
+declare
+  v_user uuid := auth.uid();
+  q player_daily_quests%rowtype;
+begin
+  if v_user is null then raise exception 'not authenticated'; end if;
+
+  select * into q from player_daily_quests
+    where user_id = v_user and quest_date = current_date and template_id = p_template_id
+    for update;
+  if not found then raise exception 'quest not found'; end if;
+  if not q.completed then raise exception 'quest not complete yet'; end if;
+  if q.claimed then raise exception 'already claimed'; end if;
+
+  update player_daily_quests set claimed = true
+    where user_id = v_user and quest_date = current_date and template_id = p_template_id;
+  update player_state set coins = coins + q.coin_reward, gems = gems + q.gem_reward, updated_at = now()
+    where user_id = v_user;
+
+  return jsonb_build_object('coin_reward', q.coin_reward, 'gem_reward', q.gem_reward);
+end;
+$$;
+
 -- Effective multiplier from the player's "multiplier" category upgrades.
 create or replace function effective_multiplier(p_user uuid) returns numeric
-language sql security definer stable as $$
+language sql security definer stable set search_path = public, pg_temp as $$
   select 1 + coalesce(sum(u.effect_value * pu.level), 0)
   from player_upgrades pu
   join upgrades u on u.id = pu.upgrade_id and u.category = 'multiplier'
@@ -213,7 +306,7 @@ $$;
 
 -- Capacity bonus (extra hours) from "capacity" category upgrades.
 create or replace function capacity_bonus_hours(p_user uuid) returns numeric
-language sql security definer stable as $$
+language sql security definer stable set search_path = public, pg_temp as $$
   select coalesce(sum(u.effect_value * pu.level), 0)
   from player_upgrades pu
   join upgrades u on u.id = pu.upgrade_id and u.category = 'capacity'
@@ -222,7 +315,7 @@ $$;
 
 -- Collect ALL pending income across every owned card. Returns coins collected.
 create or replace function collect_all() returns numeric
-language plpgsql security definer as $$
+language plpgsql security definer set search_path = public, pg_temp as $$
 declare
   v_user uuid := auth.uid();
   v_mult numeric;
@@ -260,6 +353,8 @@ begin
     update player_state
       set coins = coins + v_total, total_coins_earned = total_coins_earned + v_total, updated_at = now()
       where user_id = v_user;
+    perform increment_quest_progress(v_user, 'collect_coins', v_total);
+    perform increment_quest_progress(v_user, 'collect_clicks', 1);
   end if;
 
   return v_total;
@@ -268,7 +363,7 @@ $$;
 
 -- Collect pending income from a single card. Returns coins collected.
 create or replace function collect_card(p_card_id text) returns numeric
-language plpgsql security definer as $$
+language plpgsql security definer set search_path = public, pg_temp as $$
 declare
   v_user uuid := auth.uid();
   v_mult numeric;
@@ -300,6 +395,8 @@ begin
     update player_state
       set coins = coins + v_amount, total_coins_earned = total_coins_earned + v_amount, updated_at = now()
       where user_id = v_user;
+    perform increment_quest_progress(v_user, 'collect_coins', v_amount);
+    perform increment_quest_progress(v_user, 'collect_clicks', 1);
   end if;
 
   return v_amount;
@@ -308,7 +405,7 @@ $$;
 
 -- Open a pack: validates cost, deducts coins, rolls cards server-side, returns the pulled cards as JSON.
 create or replace function open_pack(p_pack_id text) returns jsonb
-language plpgsql security definer as $$
+language plpgsql security definer set search_path = public, pg_temp as $$
 declare
   v_user uuid := auth.uid();
   v_pack packs%rowtype;
@@ -377,13 +474,15 @@ begin
     );
   end loop;
 
+  perform increment_quest_progress(v_user, 'open_packs', 1);
+
   return v_results;
 end;
 $$;
 
 -- Purchase/level-up an upgrade with gems.
 create or replace function purchase_upgrade(p_upgrade_id text) returns jsonb
-language plpgsql security definer as $$
+language plpgsql security definer set search_path = public, pg_temp as $$
 declare
   v_user uuid := auth.uid();
   v_upgrade upgrades%rowtype;
@@ -417,7 +516,7 @@ $$;
 
 -- Check + grant any newly-earned achievements. Returns array of newly unlocked achievement ids.
 create or replace function check_achievements() returns jsonb
-language plpgsql security definer as $$
+language plpgsql security definer set search_path = public, pg_temp as $$
 declare
   v_user uuid := auth.uid();
   v_unique_cards int;
@@ -457,7 +556,7 @@ $$;
 
 -- Daily login streak + small coin/gem bonus, call once when the app loads.
 create or replace function daily_login() returns jsonb
-language plpgsql security definer as $$
+language plpgsql security definer set search_path = public, pg_temp as $$
 declare
   v_user uuid := auth.uid();
   v_last date;
@@ -551,6 +650,15 @@ insert into upgrades (id, name, description, category, base_cost_gems, cost_grow
   ('multiplier','Income Multiplier','Increases all coin income from every card.','multiplier',15,1.5,0.1,20,2),
   ('capacity','Vault Expansion','Increases how long cards can store income before they cap out.','capacity',20,1.6,2,10,3),
   ('luck','Lucky Charm','Improves the odds of pulling rare-and-above cards from packs.','luck',30,1.7,0.05,8,4)
+on conflict (id) do nothing;
+
+insert into quest_templates (id, description, quest_type, target_value, coin_reward, gem_reward, weight) values
+  ('open_2_packs', 'Open 2 packs', 'open_packs', 2, 100, 2, 1),
+  ('open_5_packs', 'Open 5 packs', 'open_packs', 5, 300, 5, 1),
+  ('collect_500', 'Collect 500 coins from your cards', 'collect_coins', 500, 150, 3, 1),
+  ('collect_2000', 'Collect 2,000 coins from your cards', 'collect_coins', 2000, 500, 8, 1),
+  ('taps_5', 'Tap to collect from cards 5 times', 'collect_clicks', 5, 100, 2, 1),
+  ('taps_10', 'Tap to collect from cards 10 times', 'collect_clicks', 10, 250, 4, 1)
 on conflict (id) do nothing;
 
 insert into achievements (id, name, description, condition_type, condition_value, gem_reward, title) values
