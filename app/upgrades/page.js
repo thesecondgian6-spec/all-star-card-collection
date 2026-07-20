@@ -12,6 +12,7 @@ const CATEGORY_INFO = {
   capacity:     { icon: '🗄️', blurb: 'Increases how long cards can store income before they cap out.' },
   luck:         { icon: '🍀', blurb: 'Improves your odds of pulling rare-and-above cards from packs.' },
   offline:      { icon: '🌙', blurb: 'Improves earnings while you\'re away.' },
+  multi_spin:   { icon: '🎰', blurb: 'Lets you queue multiple pack spins per button press (still pays full cost per spin).' },
 };
 
 export default function UpgradesPage() {
@@ -42,7 +43,13 @@ export default function UpgradesPage() {
     setBusy(upgrade.id);
     const { data, error } = await supabase.rpc('purchase_upgrade', { p_upgrade_id: upgrade.id });
     setBusy(null);
-    if (error) { flashToast(error.message.includes('insufficient') ? 'Not enough gems for that yet.' : 'Could not purchase: ' + error.message); return; }
+    if (error) {
+      const msg = error.message.includes('insufficient') ? 'Not enough gems for that yet.'
+        : error.message.includes('locked') ? `Requires Rebirth ${upgrade.required_rebirth} to unlock.`
+        : 'Could not purchase: ' + error.message;
+      flashToast(msg);
+      return;
+    }
     flashToast(`${upgrade.name} leveled up to ${data.new_level}!`);
     load();
     reloadPlayerState();
@@ -58,18 +65,22 @@ export default function UpgradesPage() {
             const level = levels[u.id] || 0;
             const maxed = level >= u.max_level;
             const cost = maxed ? null : upgradeCost(u, level);
-            const affordable = cost !== null && (playerState?.gems || 0) >= cost;
+            const rebirthLevel = playerState?.rebirth_level || 0;
+            const locked = u.required_rebirth > rebirthLevel;
+            const affordable = !locked && cost !== null && (playerState?.gems || 0) >= cost;
             const info = CATEGORY_INFO[u.category] || {};
             return (
-              <div className="upgrade-card" key={u.id}>
+              <div className="upgrade-card" key={u.id} style={{ opacity: locked ? 0.55 : 1 }}>
                 <div className="row" style={{ justifyContent: 'space-between' }}>
-                  <span style={{ fontSize: 26 }}>{info.icon}</span>
+                  <span style={{ fontSize: 26 }}>{locked ? '🔒' : info.icon}</span>
                   <span className="lvl">Lv. {level}/{u.max_level}</span>
                 </div>
                 <h3>{u.name}</h3>
-                <p className="muted" style={{ fontSize: 12.5 }}>{u.description || info.blurb}</p>
+                <p className="muted" style={{ fontSize: 12.5 }}>{locked ? `Requires Rebirth ${u.required_rebirth} to unlock.` : (u.description || info.blurb)}</p>
                 <div className="upgrade-bar"><div style={{ width: `${(level / u.max_level) * 100}%` }} /></div>
-                {maxed ? (
+                {locked ? (
+                  <button className="btn ghost full" disabled>🔒 Requires Rebirth {u.required_rebirth}</button>
+                ) : maxed ? (
                   <button className="btn ghost full" disabled>Max Level</button>
                 ) : (
                   <button className="btn full" disabled={!affordable || busy === u.id} onClick={() => buy(u)}>
