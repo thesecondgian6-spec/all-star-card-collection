@@ -37,7 +37,7 @@ export default function AdminPage() {
 
 function AdminBody() {
   const [tab, setTab] = useState('series');
-  const tabs = ['series', 'cards', 'packs', 'upgrades', 'achievements', 'quests'];
+  const tabs = ['series', 'cards', 'packs', 'upgrades', 'achievements', 'quests', 'rebirths'];
   return (
     <>
       <div className="admin-tabs">
@@ -51,6 +51,7 @@ function AdminBody() {
       {tab === 'upgrades' && <UpgradesAdmin />}
       {tab === 'achievements' && <AchievementsAdmin />}
       {tab === 'quests' && <QuestsAdmin />}
+      {tab === 'rebirths' && <RebirthsAdmin />}
     </>
   );
 }
@@ -244,7 +245,7 @@ function PacksAdmin() {
   useEffect(() => { load(); }, [load]);
 
   function newForm() {
-    setForm({ id: '', name: '', icon: '📦', cost: 100, pull_count: 3, series_filter: '', accent: '#a78bfa',
+    setForm({ id: '', name: '', icon: '📦', cost: 100, series_filter: '', accent: '#a78bfa', required_rebirth: 0,
       weights: { common: 50, uncommon: 30, rare: 14, epic: 5, legendary: 1, mythic: 0 }, isNew: true });
   }
   function editForm(r) { setForm({ ...r, isNew: false }); }
@@ -254,8 +255,8 @@ function PacksAdmin() {
     const id = form.isNew ? (form.id.trim() || form.name.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-')) : form.id;
     const payload = {
       id, name: form.name.trim(), icon: form.icon || '📦', cost: Number(form.cost) || 0,
-      pull_count: Math.min(10, Math.max(1, Number(form.pull_count) || 1)),
       series_filter: form.series_filter || null, accent: form.accent, weights: form.weights,
+      required_rebirth: Math.max(0, Number(form.required_rebirth) || 0),
     };
     const { error } = form.isNew ? await supabase.from('packs').insert(payload) : await supabase.from('packs').update(payload).eq('id', form.id);
     if (error) { flash('Save failed: ' + error.message); return; }
@@ -270,11 +271,12 @@ function PacksAdmin() {
 
   return (
     <>
+      <p className="muted" style={{ marginBottom: 10 }}>Every pack now gives exactly 1 card per spin — cost is per spin. Players unlock multi-spin batches via the Multi-Spin upgrade.</p>
       <div className="row" style={{ justifyContent: 'flex-end', marginBottom: 10 }}>
         <button className="btn small" onClick={newForm}>+ Add Pack</button>
       </div>
       <table className="admtable">
-        <thead><tr><th>Name</th><th>Cost</th><th>Pulls</th><th>Series Filter</th><th></th></tr></thead>
+        <thead><tr><th>Name</th><th>Cost/Spin</th><th>Series Filter</th><th>Requires Rebirth</th><th></th></tr></thead>
         <tbody>
           {rows.map((p) => {
             const s = p.series_filter ? seriesList.find((x) => x.id === p.series_filter) : null;
@@ -282,8 +284,8 @@ function PacksAdmin() {
               <tr key={p.id}>
                 <td>{p.icon} {p.name}</td>
                 <td className="mono">{p.cost}</td>
-                <td>{p.pull_count}</td>
                 <td>{s ? s.name : 'All'}</td>
+                <td>{p.required_rebirth > 0 ? `🔒 ${p.required_rebirth}` : '—'}</td>
                 <td className="row">
                   <button className="btn small ghost" onClick={() => editForm(p)}>Edit</button>
                   <button className="btn small danger" onClick={() => del(p.id)}>Delete</button>
@@ -301,8 +303,8 @@ function PacksAdmin() {
             <div className="form-grid">
               <div className="field"><label>Name</label><input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></div>
               <div className="field"><label>Icon</label><input value={form.icon} onChange={(e) => setForm({ ...form, icon: e.target.value })} maxLength={4} /></div>
-              <div className="field"><label>Cost (coins)</label><input type="number" value={form.cost} onChange={(e) => setForm({ ...form, cost: e.target.value })} /></div>
-              <div className="field"><label>Cards per Pack</label><input type="number" min="1" max="10" value={form.pull_count} onChange={(e) => setForm({ ...form, pull_count: e.target.value })} /></div>
+              <div className="field"><label>Cost per Spin (coins)</label><input type="number" value={form.cost} onChange={(e) => setForm({ ...form, cost: e.target.value })} /></div>
+              <div className="field"><label>Requires Rebirth Level</label><input type="number" min="0" value={form.required_rebirth} onChange={(e) => setForm({ ...form, required_rebirth: e.target.value })} /></div>
               <div className="field">
                 <label>Restrict to Series</label>
                 <select value={form.series_filter || ''} onChange={(e) => setForm({ ...form, series_filter: e.target.value })}>
@@ -341,7 +343,7 @@ function UpgradesAdmin() {
   const load = useCallback(async () => { const { data } = await supabase.from('upgrades').select('*').order('sort_order'); setRows(data || []); }, []);
   useEffect(() => { load(); }, [load]);
 
-  function newForm() { setForm({ id: '', name: '', description: '', category: 'multiplier', base_cost_gems: 15, cost_growth: 1.5, effect_value: 0.1, max_level: 10, sort_order: rows.length + 1, isNew: true }); }
+  function newForm() { setForm({ id: '', name: '', description: '', category: 'multiplier', base_cost_gems: 15, cost_growth: 1.5, effect_value: 0.1, max_level: 10, sort_order: rows.length + 1, required_rebirth: 0, isNew: true }); }
   function editForm(r) { setForm({ ...r, isNew: false }); }
 
   async function save() {
@@ -351,6 +353,7 @@ function UpgradesAdmin() {
       id, name: form.name.trim(), description: form.description || '', category: form.category,
       base_cost_gems: Number(form.base_cost_gems) || 1, cost_growth: Number(form.cost_growth) || 1.5,
       effect_value: Number(form.effect_value) || 0, max_level: Number(form.max_level) || 1, sort_order: Number(form.sort_order) || 0,
+      required_rebirth: Math.max(0, Number(form.required_rebirth) || 0),
     };
     const { error } = form.isNew ? await supabase.from('upgrades').insert(payload) : await supabase.from('upgrades').update(payload).eq('id', form.id);
     if (error) { flash('Save failed: ' + error.message); return; }
@@ -369,12 +372,13 @@ function UpgradesAdmin() {
         <button className="btn small" onClick={newForm}>+ Add Upgrade</button>
       </div>
       <table className="admtable">
-        <thead><tr><th>Name</th><th>Category</th><th>Base Cost</th><th>Growth</th><th>Effect</th><th>Max Lvl</th><th></th></tr></thead>
+        <thead><tr><th>Name</th><th>Category</th><th>Base Cost</th><th>Growth</th><th>Effect</th><th>Max Lvl</th><th>Rebirth</th><th></th></tr></thead>
         <tbody>
           {rows.map((u) => (
             <tr key={u.id}>
               <td>{u.name}</td><td>{u.category}</td><td className="mono">{u.base_cost_gems}💎</td>
               <td className="mono">x{u.cost_growth}</td><td className="mono">{u.effect_value}</td><td>{u.max_level}</td>
+              <td>{u.required_rebirth > 0 ? `🔒 ${u.required_rebirth}` : '—'}</td>
               <td className="row">
                 <button className="btn small ghost" onClick={() => editForm(u)}>Edit</button>
                 <button className="btn small danger" onClick={() => del(u.id)}>Delete</button>
@@ -399,14 +403,16 @@ function UpgradesAdmin() {
                   <option value="capacity">Capacity</option>
                   <option value="luck">Luck</option>
                   <option value="offline">Offline</option>
+                  <option value="multi_spin">Multi-Spin</option>
                 </select>
               </div>
               <div className="field"><label>Base Cost (gems)</label><input type="number" value={form.base_cost_gems} onChange={(e) => setForm({ ...form, base_cost_gems: e.target.value })} /></div>
               <div className="field"><label>Cost Growth (per level)</label><input type="number" step="0.01" value={form.cost_growth} onChange={(e) => setForm({ ...form, cost_growth: e.target.value })} /></div>
               <div className="field"><label>Effect Value (per level)</label><input type="number" step="0.01" value={form.effect_value} onChange={(e) => setForm({ ...form, effect_value: e.target.value })} /></div>
               <div className="field"><label>Max Level</label><input type="number" value={form.max_level} onChange={(e) => setForm({ ...form, max_level: e.target.value })} /></div>
+              <div className="field"><label>Requires Rebirth Level</label><input type="number" min="0" value={form.required_rebirth} onChange={(e) => setForm({ ...form, required_rebirth: e.target.value })} /></div>
             </div>
-            <p className="muted">Multiplier effect = +effect_value per level (e.g. 0.1 = +10% per level). Capacity effect = +hours per level.</p>
+            <p className="muted">Multiplier effect = +effect_value per level (e.g. 0.1 = +10% per level). Capacity effect = +hours per level. Multi-Spin effect isn&apos;t used — each level just adds +1 max simultaneous spin.</p>
             <div className="row" style={{ justifyContent: 'flex-end' }}>
               <button className="btn ghost" onClick={() => setForm(null)}>Cancel</button>
               <button className="btn" onClick={save}>Save Upgrade</button>
@@ -501,6 +507,84 @@ function QuestsAdmin() {
     </>
   );
 }
+/* ---------------- REBIRTHS ---------------- */
+function RebirthsAdmin() {
+  const [rows, setRows] = useState([]);
+  const [form, setForm] = useState(null);
+  const [toast, flash] = useToast();
+  const load = useCallback(async () => { const { data } = await supabase.from('rebirths').select('*').order('level'); setRows(data || []); }, []);
+  useEffect(() => { load(); }, [load]);
+
+  function newForm() {
+    const nextLevel = rows.length ? Math.max(...rows.map((r) => r.level)) + 1 : 1;
+    setForm({ level: nextLevel, name: '', description: '', coin_requirement: 50000, multiplier_bonus: 0.5, gem_reward: 20, isNew: true });
+  }
+  function editForm(r) { setForm({ ...r, isNew: false }); }
+
+  async function save() {
+    if (!form.name.trim()) { flash('Rebirth tier needs a name.'); return; }
+    const payload = {
+      level: Number(form.level) || 1, name: form.name.trim(), description: form.description || '',
+      coin_requirement: Number(form.coin_requirement) || 0, multiplier_bonus: Number(form.multiplier_bonus) || 0,
+      gem_reward: Number(form.gem_reward) || 0,
+    };
+    const { error } = form.isNew ? await supabase.from('rebirths').insert(payload) : await supabase.from('rebirths').update(payload).eq('level', form.level);
+    if (error) { flash('Save failed: ' + error.message); return; }
+    setForm(null); load();
+  }
+  async function del(level) {
+    if (!confirm('Delete this rebirth tier? Players already past it keep their bonus, but no one can reach it again.')) return;
+    const { error } = await supabase.from('rebirths').delete().eq('level', level);
+    if (error) { flash('Delete failed: ' + error.message); return; }
+    load();
+  }
+
+  return (
+    <>
+      <p className="muted" style={{ marginBottom: 10 }}>Players rebirth by spending their current coins for a permanent income multiplier. Coins reset, but cards/upgrades/gems never do. Tiers must be reached in order (level N+1 needs the player to already be at level N).</p>
+      <div className="row" style={{ justifyContent: 'flex-end', marginBottom: 10 }}>
+        <button className="btn small" onClick={newForm}>+ Add Rebirth Tier</button>
+      </div>
+      <table className="admtable">
+        <thead><tr><th>Level</th><th>Name</th><th>Coin Requirement</th><th>Multiplier Bonus</th><th>Gem Reward</th><th></th></tr></thead>
+        <tbody>
+          {rows.map((r) => (
+            <tr key={r.level}>
+              <td>{r.level}</td><td>{r.name}</td><td className="mono">{r.coin_requirement}</td>
+              <td className="mono">+{Math.round(r.multiplier_bonus * 100)}%</td><td className="mono">💎{r.gem_reward}</td>
+              <td className="row">
+                <button className="btn small ghost" onClick={() => editForm(r)}>Edit</button>
+                <button className="btn small danger" onClick={() => del(r.level)}>Delete</button>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      {rows.length === 0 && <div className="empty">No rebirth tiers yet — players won&apos;t be able to rebirth until you add some.</div>}
+      {form && (
+        <div className="modal-bg" onClick={(e) => e.target === e.currentTarget && setForm(null)}>
+          <div className="modal">
+            <h2>{form.isNew ? 'Add' : 'Edit'} Rebirth Tier</h2>
+            <div className="form-grid">
+              <div className="field"><label>Level</label><input type="number" min="1" value={form.level} disabled={!form.isNew} onChange={(e) => setForm({ ...form, level: e.target.value })} /></div>
+              <div className="field"><label>Name</label><input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></div>
+              <div className="field" style={{ gridColumn: '1/-1' }}><label>Description</label><input value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} /></div>
+              <div className="field"><label>Coin Requirement</label><input type="number" value={form.coin_requirement} onChange={(e) => setForm({ ...form, coin_requirement: e.target.value })} /></div>
+              <div className="field"><label>Multiplier Bonus (0.5 = +50%)</label><input type="number" step="0.05" value={form.multiplier_bonus} onChange={(e) => setForm({ ...form, multiplier_bonus: e.target.value })} /></div>
+              <div className="field"><label>Gem Reward</label><input type="number" value={form.gem_reward} onChange={(e) => setForm({ ...form, gem_reward: e.target.value })} /></div>
+            </div>
+            <div className="row" style={{ justifyContent: 'flex-end' }}>
+              <button className="btn ghost" onClick={() => setForm(null)}>Cancel</button>
+              <button className="btn" onClick={save}>Save Tier</button>
+            </div>
+          </div>
+        </div>
+      )}
+      {toast && <div className="toast">{toast}</div>}
+    </>
+  );
+}
+
 /* ---------------- ACHIEVEMENTS ---------------- */
 function AchievementsAdmin() {
   const [rows, setRows] = useState([]);
