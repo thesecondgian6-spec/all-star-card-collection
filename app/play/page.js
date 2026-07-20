@@ -221,7 +221,7 @@ export default function PlayPage() {
 
       {detail && (
         <CardDetailModal
-          card={detail} owned={ownedMap[detail.id]} seriesIcon={series.find((s) => s.id === detail.series_id)?.icon}
+          card={detail} owned={ownedMap[detail.id]} cardSeries={series.find((s) => s.id === detail.series_id)}
           capacityBonus={capacityBonus} multiplier={multiplier} busy={busyCard === detail.id}
           onCollect={(e) => collectCard(detail.id, e.currentTarget)}
           onClose={() => setDetail(null)}
@@ -232,7 +232,7 @@ export default function PlayPage() {
   );
 }
 
-function CardDetailModal({ card, owned, seriesIcon, capacityBonus, multiplier, busy, onCollect, onClose }) {
+function CardDetailModal({ card, owned, cardSeries, capacityBonus, multiplier, busy, onCollect, onClose }) {
   const [, setTick] = useState(0);
   useEffect(() => { const id = setInterval(() => setTick((t) => t + 1), 1000); return () => clearInterval(id); }, []);
   const rr = RARITY_MAP[card.rarity];
@@ -241,26 +241,46 @@ function CardDetailModal({ card, owned, seriesIcon, capacityBonus, multiplier, b
     earnRate: card.earn_rate, count, lastTick: owned.last_tick,
     capHours: card.cap_hours, capacityBonusHours: capacityBonus, multiplier,
   }) : 0;
+  const effectiveRatePerSec = Number(card.earn_rate) * count * multiplier;
+
   return (
     <div className="modal-bg" onClick={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="modal" style={{ maxWidth: 380, textAlign: 'center' }}>
-        <div style={{ width: 160, height: 220, margin: '0 auto 14px', borderRadius: 14, overflow: 'hidden', border: `2px solid ${rr.hex}`, boxShadow: `0 0 28px ${rr.hex}55`, display: 'flex', alignItems: 'center', justifyContent: 'center', background: `linear-gradient(160deg, ${rr.hex}33, var(--surface-2))`, fontSize: 44 }}>
-          {card.image_url ? <img src={card.image_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : seriesIcon}
+      <div className="modal card-profile-modal" style={{ '--rc': rr.hex }}>
+        <div className="card-profile-banner">
+          {card.image_url ? (
+            <img src={card.image_url} alt="" />
+          ) : (
+            <div className="card-profile-banner-fallback">{cardSeries?.icon || '🎴'}</div>
+          )}
+          <button className="card-profile-close" onClick={onClose} aria-label="Close">✕</button>
+          <div className="card-profile-banner-scrim" />
+          <div className="card-profile-banner-content">
+            <span className="rtag" style={{ color: rr.hex, background: `${rr.hex}22`, border: `1px solid ${rr.hex}55` }}>{rr.name}</span>
+            <h2>{card.name}</h2>
+            {cardSeries && <span className="card-profile-series">{cardSeries.icon} {cardSeries.name}</span>}
+          </div>
         </div>
-        <h2>{card.name}</h2>
-        <p className="sub" style={{ color: rr.hex, fontWeight: 700 }}>{rr.name}</p>
-        {card.flavor && <p className="muted">{card.flavor}</p>}
-        <div className="stats-grid" style={{ marginTop: 14 }}>
-          <div className="stat"><div className="label">Owned</div><div className="value">{count}</div></div>
-          <div className="stat"><div className="label">Lifetime Earned</div><div className="value gold mono">{fmt(owned?.total_generated || 0)}</div></div>
-        </div>
-        <div className="stat" style={{ marginTop: 12 }}>
-          <div className="label">Ready to Collect</div>
-          <div className="value gold mono">{fmt(pending)}</div>
-        </div>
-        <div className="row" style={{ justifyContent: 'center', marginTop: 16 }}>
-          <button className="btn ghost" onClick={onClose}>Close</button>
-          <button className="btn" onClick={onCollect} disabled={busy || pending < 1}>{busy ? 'Collecting…' : 'Collect'}</button>
+
+        <div style={{ padding: '16px 20px 20px' }}>
+          {card.flavor && (
+            <blockquote className="card-lore">{card.flavor}</blockquote>
+          )}
+
+          <div className="stats-grid">
+            <div className="stat"><div className="label">Owned</div><div className="value">{count}</div></div>
+            <div className="stat"><div className="label">Base Rate</div><div className="value mono" style={{ fontSize: 16 }}>{card.earn_rate}/s</div></div>
+            <div className="stat"><div className="label">Current Output</div><div className="value gold mono" style={{ fontSize: 16 }}>{fmt(effectiveRatePerSec)}/s</div></div>
+            <div className="stat"><div className="label">Lifetime Earned</div><div className="value gold mono">{fmt(owned?.total_generated || 0)}</div></div>
+          </div>
+          <div className="stat" style={{ marginTop: 12 }}>
+            <div className="label">Ready to Collect</div>
+            <div className="value gold mono">{fmt(pending)}</div>
+          </div>
+
+          <div className="row" style={{ justifyContent: 'center', marginTop: 16 }}>
+            <button className="btn ghost" onClick={onClose}>Close</button>
+            <button className="btn" onClick={onCollect} disabled={busy || pending < 1}>{busy ? 'Collecting…' : 'Collect'}</button>
+          </div>
         </div>
       </div>
     </div>
