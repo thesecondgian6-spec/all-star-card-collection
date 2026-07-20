@@ -31,10 +31,15 @@ export default function AppShell({ children, coins, gems }) {
 
   return (
     <div id="shell">
+      <div className="hero-banner">
+        <img src="https://media1.tenor.com/m/AZ3AzUjVeI8AAAAC/banner.gif" alt="" />
+        <h2 className="hero-title">ALL STAR CARD COLLECTION</h2>
+        <span className="hero-tag">Roll · Collect · Flex</span>
+      </div>
       <header className="topbar">
         <Link href="/play" className="brand">
           <div className="brand-mark">🎴</div>
-          <div><h1>All Star Card Collection</h1><span>Roll · Collect · Flex</span></div>
+          <div className="brand-text"><h1>All Star Card Collection</h1><span>Roll · Collect · Flex</span></div>
         </Link>
         <div className="wallets">
           <div className="wallet-item coins"><span>🪙</span><span className="num">{fmt(displayCoins)}</span></div>
