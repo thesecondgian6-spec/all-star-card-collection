@@ -6,6 +6,7 @@ import { supabase } from '../../lib/supabaseClient';
 import { useAuth } from '../../lib/AuthProvider';
 import { usePlayerState } from '../../lib/usePlayerState';
 import { RARITIES, RARITY_MAP, fmt, estimatePending } from '../../lib/gameData';
+import { flyCoinToWallet } from '../../lib/effects';
 
 export default function PlayPage() {
   const { user } = useAuth();
@@ -21,21 +22,24 @@ export default function PlayPage() {
   const [tick, setTick] = useState(0);
   const [busyCard, setBusyCard] = useState(null);
   const [detail, setDetail] = useState(null);
+  const [rebirths, setRebirths] = useState([]);
   const [toast, setToast] = useState('');
 
   const loadAll = useCallback(async () => {
     if (!user) return;
-    const [{ data: seriesData }, { data: cardsData }, { data: ownedData }, { data: upgradesData }, { data: playerUpgData }] =
+    const [{ data: seriesData }, { data: cardsData }, { data: ownedData }, { data: upgradesData }, { data: playerUpgData }, { data: rebirthData }] =
       await Promise.all([
         supabase.from('series').select('*').order('sort_order'),
         supabase.from('cards').select('*'),
         supabase.from('player_cards').select('*').eq('user_id', user.id),
         supabase.from('upgrades').select('*'),
         supabase.from('player_upgrades').select('*').eq('user_id', user.id),
+        supabase.from('rebirths').select('*'),
       ]);
     setSeries(seriesData || []);
     setCards(cardsData || []);
     setUpgrades(upgradesData || []);
+    setRebirths(rebirthData || []);
     const om = {};
     (ownedData || []).forEach((r) => { om[r.card_id] = r; });
     setOwnedMap(om);
@@ -67,8 +71,10 @@ export default function PlayPage() {
     upgrades.filter((u) => u.category === 'multiplier').forEach((u) => {
       m += (playerUpgrades[u.id] || 0) * Number(u.effect_value);
     });
-    return m;
-  }, [upgrades, playerUpgrades]);
+    const rebirthLevel = playerState?.rebirth_level || 0;
+    const rebirthBonus = rebirths.filter((r) => r.level <= rebirthLevel).reduce((s, r) => s + Number(r.multiplier_bonus), 0);
+    return m * (1 + rebirthBonus);
+  }, [upgrades, playerUpgrades, rebirths, playerState?.rebirth_level]);
 
   const capacityBonus = useMemo(() => {
     let c = 0;
@@ -78,13 +84,16 @@ export default function PlayPage() {
     return c;
   }, [upgrades, playerUpgrades]);
 
-  async function collectCard(cardId) {
+  async function collectCard(cardId, originEl) {
     setBusyCard(cardId);
     const { data, error } = await supabase.rpc('collect_card', { p_card_id: cardId });
     setBusyCard(null);
     if (error) { flashToast('Could not collect: ' + error.message); return; }
     const amount = Number(data) || 0;
-    if (amount > 0) flashToast(`+${fmt(amount)} coins collected`);
+    if (amount > 0) {
+      flashToast(`+${fmt(amount)} coins collected`);
+      flyCoinToWallet(originEl);
+    }
     setOwnedMap((prev) => ({
       ...prev,
       [cardId]: { ...prev[cardId], last_tick: new Date().toISOString(), total_generated: (prev[cardId]?.total_generated || 0) + amount },
@@ -93,11 +102,14 @@ export default function PlayPage() {
     supabase.rpc('check_achievements');
   }
 
-  async function collectAll(silent) {
-    const { data, error } = await supabase.rpc('collect_all');
+  async function collectAll(silent, originEl) {
+    const { data, error } = await supabase.rpc('collect_all', { p_is_auto: !!silent });
     if (error) { if (!silent) flashToast('Could not collect: ' + error.message); return; }
     const amount = Number(data) || 0;
-    if (amount > 0 && !silent) flashToast(`+${fmt(amount)} coins collected from your whole binder`);
+    if (amount > 0 && !silent) {
+      flashToast(`+${fmt(amount)} coins collected from your whole binder`);
+      flyCoinToWallet(originEl, 6);
+    }
     loadAll();
     reloadPlayerState();
     supabase.rpc('check_achievements');
@@ -120,6 +132,11 @@ export default function PlayPage() {
 
   const uniqueOwned = Object.values(ownedMap).filter((r) => r.count > 0).length;
 
+  const comboActive = playerState?.combo_count > 0 && playerState?.last_collect_at &&
+    (Date.now() - new Date(playerState.last_collect_at).getTime()) < 90000;
+  const comboSecondsLeft = comboActive ? Math.max(0, Math.ceil(90 - (Date.now() - new Date(playerState.last_collect_at).getTime()) / 1000)) : 0;
+  const comboBonusPct = Math.min((playerState?.combo_count || 0) * 2, 50);
+
   return (
     <AppShell coins={playerState?.coins} gems={playerState?.gems}>
       <div className="stats-grid">
@@ -127,7 +144,15 @@ export default function PlayPage() {
         <div className="stat"><div className="label">Uncollected Right Now</div><div className="value gold mono">{fmt(totalPending)}</div></div>
         <div className="stat"><div className="label">Income Multiplier</div><div className="value rose mono">x{multiplier.toFixed(2)}</div></div>
         <div className="stat">
-          <button className="btn full" onClick={() => collectAll(false)}>Collect All</button>
+          <div className="label">Collect Combo</div>
+          {comboActive ? (
+            <div className="value" style={{ color: 'var(--gold)' }}>🔥 x{playerState.combo_count} <span style={{ fontSize: 12, color: 'var(--text-faint)' }}>(+{comboBonusPct}%, {comboSecondsLeft}s)</span></div>
+          ) : (
+            <div className="value" style={{ color: 'var(--text-faint)', fontSize: 15 }}>Collect to start a streak</div>
+          )}
+        </div>
+        <div className="stat">
+          <button className="btn full" onClick={(e) => collectAll(false, e.currentTarget)}>Collect All</button>
         </div>
       </div>
 
@@ -174,7 +199,7 @@ export default function PlayPage() {
                     capHours: c.cap_hours, capacityBonusHours: capacityBonus, multiplier,
                   }) : 0;
                   return (
-                    <div key={c.id} className={`gcard ${count === 0 ? 'locked' : ''}`} style={{ '--rc': rr.hex }}
+                    <div key={c.id} className={`gcard ${count === 0 ? 'locked' : ''} ${count > 0 && ['epic', 'legendary', 'mythic'].includes(c.rarity) ? 'shine' : ''}`} style={{ '--rc': rr.hex }}
                       onClick={() => count > 0 ? setDetail(c) : null}>
                       {pending > 0.5 && <span className="collect-hint">+{fmt(pending)}</span>}
                       <div className="art">{c.image_url ? <img src={c.image_url} alt="" /> : (count === 0 ? '❔' : s.icon)}</div>
@@ -198,7 +223,7 @@ export default function PlayPage() {
         <CardDetailModal
           card={detail} owned={ownedMap[detail.id]} seriesIcon={series.find((s) => s.id === detail.series_id)?.icon}
           capacityBonus={capacityBonus} multiplier={multiplier} busy={busyCard === detail.id}
-          onCollect={() => collectCard(detail.id)}
+          onCollect={(e) => collectCard(detail.id, e.currentTarget)}
           onClose={() => setDetail(null)}
         />
       )}
