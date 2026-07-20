@@ -93,7 +93,7 @@ function SeriesAdmin() {
       <div className="row" style={{ justifyContent: 'flex-end', marginBottom: 10 }}>
         <button className="btn small" onClick={newForm}>+ Add Series</button>
       </div>
-      <table className="admtable">
+      <div className="table-scroll"><table className="admtable">
         <thead><tr><th>Icon</th><th>Name</th><th>Accent</th><th></th></tr></thead>
         <tbody>
           {rows.map((s) => (
@@ -108,7 +108,7 @@ function SeriesAdmin() {
             </tr>
           ))}
         </tbody>
-      </table>
+      </table></div>
       {rows.length === 0 && <div className="empty">No series yet.</div>}
       {form && (
         <div className="modal-bg" onClick={(e) => e.target === e.currentTarget && setForm(null)}>
@@ -175,7 +175,7 @@ function CardsAdmin() {
       <div className="row" style={{ justifyContent: 'flex-end', marginBottom: 10 }}>
         <button className="btn small" onClick={newForm} disabled={seriesList.length === 0}>+ Add Card</button>
       </div>
-      <table className="admtable">
+      <div className="table-scroll"><table className="admtable">
         <thead><tr><th>Name</th><th>Series</th><th>Rarity</th><th>Rate</th><th></th></tr></thead>
         <tbody>
           {rows.map((c) => {
@@ -195,7 +195,7 @@ function CardsAdmin() {
             );
           })}
         </tbody>
-      </table>
+      </table></div>
       {rows.length === 0 && <div className="empty">No cards yet.</div>}
       {form && (
         <div className="modal-bg" onClick={(e) => e.target === e.currentTarget && setForm(null)}>
@@ -275,7 +275,7 @@ function PacksAdmin() {
       <div className="row" style={{ justifyContent: 'flex-end', marginBottom: 10 }}>
         <button className="btn small" onClick={newForm}>+ Add Pack</button>
       </div>
-      <table className="admtable">
+      <div className="table-scroll"><table className="admtable">
         <thead><tr><th>Name</th><th>Cost/Spin</th><th>Series Filter</th><th>Requires Rebirth</th><th></th></tr></thead>
         <tbody>
           {rows.map((p) => {
@@ -294,7 +294,7 @@ function PacksAdmin() {
             );
           })}
         </tbody>
-      </table>
+      </table></div>
       {rows.length === 0 && <div className="empty">No packs yet.</div>}
       {form && (
         <div className="modal-bg" onClick={(e) => e.target === e.currentTarget && setForm(null)}>
@@ -371,7 +371,7 @@ function UpgradesAdmin() {
       <div className="row" style={{ justifyContent: 'flex-end', marginBottom: 10 }}>
         <button className="btn small" onClick={newForm}>+ Add Upgrade</button>
       </div>
-      <table className="admtable">
+      <div className="table-scroll"><table className="admtable">
         <thead><tr><th>Name</th><th>Category</th><th>Base Cost</th><th>Growth</th><th>Effect</th><th>Max Lvl</th><th>Rebirth</th><th></th></tr></thead>
         <tbody>
           {rows.map((u) => (
@@ -386,7 +386,7 @@ function UpgradesAdmin() {
             </tr>
           ))}
         </tbody>
-      </table>
+      </table></div>
       {rows.length === 0 && <div className="empty">No upgrades yet.</div>}
       {form && (
         <div className="modal-bg" onClick={(e) => e.target === e.currentTarget && setForm(null)}>
@@ -461,7 +461,7 @@ function QuestsAdmin() {
       <div className="row" style={{ justifyContent: 'flex-end', marginBottom: 10 }}>
         <button className="btn small" onClick={newForm}>+ Add Quest</button>
       </div>
-      <table className="admtable">
+      <div className="table-scroll"><table className="admtable">
         <thead><tr><th>Description</th><th>Type</th><th>Target</th><th>Reward</th><th>Weight</th><th></th></tr></thead>
         <tbody>
           {rows.map((q) => (
@@ -475,7 +475,7 @@ function QuestsAdmin() {
             </tr>
           ))}
         </tbody>
-      </table>
+      </table></div>
       {rows.length === 0 && <div className="empty">No quest templates yet.</div>}
       {form && (
         <div className="modal-bg" onClick={(e) => e.target === e.currentTarget && setForm(null)}>
@@ -545,7 +545,7 @@ function RebirthsAdmin() {
       <div className="row" style={{ justifyContent: 'flex-end', marginBottom: 10 }}>
         <button className="btn small" onClick={newForm}>+ Add Rebirth Tier</button>
       </div>
-      <table className="admtable">
+      <div className="table-scroll"><table className="admtable">
         <thead><tr><th>Level</th><th>Name</th><th>Coin Requirement</th><th>Multiplier Bonus</th><th>Gem Reward</th><th></th></tr></thead>
         <tbody>
           {rows.map((r) => (
@@ -559,7 +559,7 @@ function RebirthsAdmin() {
             </tr>
           ))}
         </tbody>
-      </table>
+      </table></div>
       {rows.length === 0 && <div className="empty">No rebirth tiers yet — players won&apos;t be able to rebirth until you add some.</div>}
       {form && (
         <div className="modal-bg" onClick={(e) => e.target === e.currentTarget && setForm(null)}>
@@ -619,7 +619,7 @@ function AchievementsAdmin() {
       <div className="row" style={{ justifyContent: 'flex-end', marginBottom: 10 }}>
         <button className="btn small" onClick={newForm}>+ Add Achievement</button>
       </div>
-      <table className="admtable">
+      <div className="table-scroll"><table className="admtable">
         <thead><tr><th>Name</th><th>Condition</th><th>Reward</th><th>Title</th><th></th></tr></thead>
         <tbody>
           {rows.map((a) => (
@@ -635,7 +635,7 @@ function AchievementsAdmin() {
             </tr>
           ))}
         </tbody>
-      </table>
+      </table></div>
       {rows.length === 0 && <div className="empty">No achievements yet.</div>}
       {form && (
         <div className="modal-bg" onClick={(e) => e.target === e.currentTarget && setForm(null)}>
