@@ -343,15 +343,15 @@ function UpgradesAdmin() {
   const load = useCallback(async () => { const { data } = await supabase.from('upgrades').select('*').order('sort_order'); setRows(data || []); }, []);
   useEffect(() => { load(); }, [load]);
 
-  function newForm() { setForm({ id: '', name: '', description: '', category: 'multiplier', base_cost_gems: 15, cost_growth: 1.5, effect_value: 0.1, max_level: 10, sort_order: rows.length + 1, required_rebirth: 0, isNew: true }); }
+  function newForm() { setForm({ id: '', name: '', description: '', category: 'multiplier', currency: 'gems', base_cost: 15, cost_growth: 1.5, effect_value: 0.1, max_level: 10, sort_order: rows.length + 1, required_rebirth: 0, isNew: true }); }
   function editForm(r) { setForm({ ...r, isNew: false }); }
 
   async function save() {
     if (!form.name.trim()) { flash('Upgrade needs a name.'); return; }
     const id = form.isNew ? (form.id.trim() || form.name.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-')) : form.id;
     const payload = {
-      id, name: form.name.trim(), description: form.description || '', category: form.category,
-      base_cost_gems: Number(form.base_cost_gems) || 1, cost_growth: Number(form.cost_growth) || 1.5,
+      id, name: form.name.trim(), description: form.description || '', category: form.category, currency: form.currency,
+      base_cost: Number(form.base_cost) || 1, cost_growth: Number(form.cost_growth) || 1.5,
       effect_value: Number(form.effect_value) || 0, max_level: Number(form.max_level) || 1, sort_order: Number(form.sort_order) || 0,
       required_rebirth: Math.max(0, Number(form.required_rebirth) || 0),
     };
@@ -372,11 +372,12 @@ function UpgradesAdmin() {
         <button className="btn small" onClick={newForm}>+ Add Upgrade</button>
       </div>
       <div className="table-scroll"><table className="admtable">
-        <thead><tr><th>Name</th><th>Category</th><th>Base Cost</th><th>Growth</th><th>Effect</th><th>Max Lvl</th><th>Rebirth</th><th></th></tr></thead>
+        <thead><tr><th>Name</th><th>Category</th><th>Currency</th><th>Base Cost</th><th>Growth</th><th>Effect</th><th>Max Lvl</th><th>Rebirth</th><th></th></tr></thead>
         <tbody>
           {rows.map((u) => (
             <tr key={u.id}>
-              <td>{u.name}</td><td>{u.category}</td><td className="mono">{u.base_cost_gems}💎</td>
+              <td>{u.name}</td><td>{u.category}</td><td>{u.currency === 'coins' ? '🪙 coins' : '💎 gems'}</td>
+              <td className="mono">{u.base_cost}</td>
               <td className="mono">x{u.cost_growth}</td><td className="mono">{u.effect_value}</td><td>{u.max_level}</td>
               <td>{u.required_rebirth > 0 ? `🔒 ${u.required_rebirth}` : '—'}</td>
               <td className="row">
@@ -406,7 +407,14 @@ function UpgradesAdmin() {
                   <option value="multi_spin">Multi-Spin</option>
                 </select>
               </div>
-              <div className="field"><label>Base Cost (gems)</label><input type="number" value={form.base_cost_gems} onChange={(e) => setForm({ ...form, base_cost_gems: e.target.value })} /></div>
+              <div className="field">
+                <label>Currency</label>
+                <select value={form.currency} onChange={(e) => setForm({ ...form, currency: e.target.value })}>
+                  <option value="gems">💎 Gems (utility upgrades)</option>
+                  <option value="coins">🪙 Coins (income upgrades)</option>
+                </select>
+              </div>
+              <div className="field"><label>Base Cost</label><input type="number" value={form.base_cost} onChange={(e) => setForm({ ...form, base_cost: e.target.value })} /></div>
               <div className="field"><label>Cost Growth (per level)</label><input type="number" step="0.01" value={form.cost_growth} onChange={(e) => setForm({ ...form, cost_growth: e.target.value })} /></div>
               <div className="field"><label>Effect Value (per level)</label><input type="number" step="0.01" value={form.effect_value} onChange={(e) => setForm({ ...form, effect_value: e.target.value })} /></div>
               <div className="field"><label>Max Level</label><input type="number" value={form.max_level} onChange={(e) => setForm({ ...form, max_level: e.target.value })} /></div>
