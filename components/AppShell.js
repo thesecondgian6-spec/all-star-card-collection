@@ -22,6 +22,7 @@ export default function AppShell({ children, coins, gems }) {
 
   const tabs = [
     { href: '/play', label: 'Binder', icon: '🗂️' },
+    { href: '/collection', label: 'Collection', icon: '📚' },
     { href: '/packs', label: 'Packs', icon: '📦' },
     { href: '/upgrades', label: 'Upgrades', icon: '⚡' },
     { href: '/rebirth', label: 'Rebirth', icon: '🌟' },
