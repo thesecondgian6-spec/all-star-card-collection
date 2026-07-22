@@ -17,7 +17,7 @@ body{
 }
 /* starfield: scattered twinkling dots layered behind everything */
 body::before{
-  content:""; position:fixed; inset:0; pointer-events:none; z-index:0; opacity:0.55;
+  content:""; position:fixed; inset:0; pointer-events:none; z-index:0; opacity:0.6;
   background-image:
     radial-gradient(1.5px 1.5px at 10% 15%, #fff, transparent),
     radial-gradient(1px 1px at 25% 45%, #fff, transparent),
@@ -34,7 +34,43 @@ body::before{
   background-repeat:repeat; background-size:340px 340px;
   animation:cv-twinkle 6s ease-in-out infinite alternate;
 }
-@keyframes cv-twinkle{ from{ opacity:0.35; } to{ opacity:0.7; } }
+@keyframes cv-twinkle{ from{ opacity:0.35; } to{ opacity:0.75; } }
+
+/* second layer: smaller, denser stars that slowly drift for a parallax "deep space" feel */
+body::after{
+  content:""; position:fixed; inset:-10% -10% -10% -10%; pointer-events:none; z-index:0; opacity:0.4;
+  background-image:
+    radial-gradient(1px 1px at 5% 20%, #fff, transparent),
+    radial-gradient(0.8px 0.8px at 18% 60%, #ffd6ec, transparent),
+    radial-gradient(1px 1px at 32% 10%, #fff, transparent),
+    radial-gradient(0.8px 0.8px at 46% 75%, #e9d6ff, transparent),
+    radial-gradient(1px 1px at 58% 35%, #fff, transparent),
+    radial-gradient(0.8px 0.8px at 72% 90%, #fff, transparent),
+    radial-gradient(1px 1px at 85% 55%, #ffd6ec, transparent),
+    radial-gradient(0.8px 0.8px at 95% 22%, #fff, transparent),
+    radial-gradient(1px 1px at 12% 95%, #e9d6ff, transparent),
+    radial-gradient(0.8px 0.8px at 65% 5%, #fff, transparent);
+  background-repeat:repeat; background-size:220px 220px;
+  animation:cv-drift 90s linear infinite;
+}
+@keyframes cv-drift{ from{ background-position:0 0; } to{ background-position:-220px 220px; } }
+
+/* occasional shooting stars streaking across the sky */
+.shooting-star{
+  position:fixed; top:0; left:0; width:2px; height:2px; z-index:0; pointer-events:none;
+  background:linear-gradient(90deg, #fff, transparent);
+  border-radius:50%; box-shadow:0 0 6px 1px rgba(255,255,255,0.7);
+  opacity:0; animation:cv-shoot 8s linear infinite;
+}
+.shooting-star:nth-child(1){ top:12%; left:-5%; animation-delay:1.5s; }
+.shooting-star:nth-child(2){ top:38%; left:-5%; animation-delay:5.5s; animation-duration:11s; }
+.shooting-star:nth-child(3){ top:64%; left:-5%; animation-delay:9s; animation-duration:9.5s; }
+@keyframes cv-shoot{
+  0%{ opacity:0; transform:translate(0,0) rotate(18deg) scaleX(1); }
+  2%{ opacity:1; }
+  16%{ opacity:0; transform:translate(120vw, 38vh) rotate(18deg) scaleX(70); }
+  100%{ opacity:0; }
+}
 h1,h2,h3,.display{ font-family:'Orbitron', 'Rajdhani', sans-serif; font-weight:700; letter-spacing:0.02em; margin:0; }
 .panel h2, .stat .value, nav.tabs a, .bottom-nav a{ font-family:'Rajdhani', sans-serif; }
 .mono{ font-family:'Space Mono', monospace; }
@@ -160,7 +196,21 @@ nav.tabs a.active{ background:linear-gradient(135deg, rgba(157,92,255,0.22), rgb
 .gcard .rtag{ font-size:9px; text-transform:uppercase; letter-spacing:0.05em; color:var(--rc); font-weight:700; }
 .gcard .count{ font-size:10px; color:var(--text-faint); font-family:'Space Mono',monospace; }
 .gcard .pending{ font-size:10px; color:var(--gold); font-family:'Space Mono',monospace; }
-.gcard .collect-hint{ position:absolute; top:5px; right:5px; background:rgba(232,184,75,0.92); color:#160f22; font-size:9px; font-weight:700; padding:2px 6px; border-radius:20px; }
+.gcard .collect-hint{ position:absolute; top:5px; right:5px; background:rgba(232,184,75,0.92); color:#160f22; font-size:9px; font-weight:700; padding:2px 6px; border-radius:20px; z-index:1; }
+.gcard .lvl-badge{
+  position:absolute; top:5px; left:5px; z-index:1; background:rgba(8,6,14,0.72); backdrop-filter:blur(2px);
+  color:var(--rc,var(--text)); border:1px solid var(--rc,var(--border)); font-size:9.5px; font-weight:700;
+  padding:2px 6px; border-radius:20px; font-family:'Space Mono',monospace;
+}
+.gcard .rate-line{ font-size:9.5px; color:var(--gold); font-family:'Space Mono',monospace; margin:1px 0; }
+
+.level-up-box{ background:var(--surface-2); border:1px solid var(--border); border-radius:12px; padding:12px; margin-top:14px; }
+
+.card-profile-level{
+  position:absolute; top:10px; left:10px; z-index:2; background:rgba(8,6,14,0.6); backdrop-filter:blur(4px);
+  color:var(--text); border:1px solid var(--rc); font-size:11px; font-weight:700; padding:4px 10px; border-radius:20px;
+  font-family:'Space Mono',monospace;
+}
 .gcard:active{ transform:translateY(-1px) scale(0.98); }
 .gcard.shine::before{
   content:""; position:absolute; inset:0; pointer-events:none; z-index:1;
@@ -168,6 +218,13 @@ nav.tabs a.active{ background:linear-gradient(135deg, rgba(157,92,255,0.22), rgb
   background-size:220% 220%; animation:cv-shine 3.4s linear infinite;
 }
 @keyframes cv-shine{ 0%{ background-position:200% 0; } 100%{ background-position:-40% 0; } }
+
+.roster-empty-slot{
+  border:1.5px dashed var(--border); background:rgba(255,255,255,0.02); color:var(--text-faint);
+  display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px;
+  font-family:inherit;
+}
+.roster-empty-slot:hover{ border-color:var(--rose); color:var(--rose); background:rgba(244,86,140,0.06); }
 
 .modal-bg{ position:fixed; inset:0; background:rgba(8,6,14,0.82); backdrop-filter:blur(4px); z-index:100; display:flex; align-items:center; justify-content:center; padding:20px; }
 .modal{ background:var(--surface); border:1px solid var(--border); border-radius:18px; padding:22px; max-width:640px; width:100%; max-height:88vh; overflow:auto; }
@@ -288,7 +345,7 @@ table.admtable td{ padding:9px 10px; border-bottom:1px solid var(--border); vert
 .sound-toggle{ background:var(--surface-2); border:1px solid var(--border); color:var(--text-dim); width:34px; height:34px; border-radius:9px; display:flex; align-items:center; justify-content:center; font-size:15px; }
 .sound-toggle.off{ opacity:0.45; }
 
-@keyframes cv-fade-in{ from{ opacity:0; transform:translateY(6px); } to{ opacity:1; transform:translateY(0); } }
+@keyframes cv-fade-in{ from{ opacity:0; } to{ opacity:1; } }
 .page-fade{ animation:cv-fade-in .28s ease both; }
 
 @keyframes cv-toast-in{ from{ opacity:0; transform:translate(-50%, 12px); } to{ opacity:1; transform:translate(-50%, 0); } }
@@ -302,11 +359,13 @@ table.admtable td{ padding:9px 10px; border-bottom:1px solid var(--border); vert
     display:flex; position:fixed; left:0; right:0; bottom:0; z-index:50;
     background:rgba(18,15,30,0.95); backdrop-filter:blur(10px); border-top:1px solid var(--border);
     padding:6px 4px calc(6px + env(safe-area-inset-bottom, 0px));
+    overflow-x:auto; -webkit-overflow-scrolling:touch;
   }
   .bottom-nav a{
-    flex:1; display:flex; flex-direction:column; align-items:center; gap:2px; text-decoration:none;
-    color:var(--text-faint); font-size:10.5px; padding:6px 2px; border-radius:10px; font-family:'Rajdhani',sans-serif; font-weight:600;
+    flex:1 0 auto; min-width:52px; display:flex; flex-direction:column; align-items:center; gap:2px; text-decoration:none;
+    color:var(--text-faint); font-size:9.5px; padding:6px 2px; border-radius:10px; font-family:'Rajdhani',sans-serif; font-weight:600;
+    white-space:nowrap;
   }
-  .bottom-nav a .bn-icon{ font-size:19px; }
+  .bottom-nav a .bn-icon{ font-size:17px; }
   .bottom-nav a.active{ color:var(--rose); background:rgba(244,86,140,0.1); }
 }

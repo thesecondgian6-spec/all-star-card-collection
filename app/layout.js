@@ -17,6 +17,9 @@ export default function RootLayout({ children }) {
         />
       </head>
       <body>
+        <div className="shooting-star" />
+        <div className="shooting-star" />
+        <div className="shooting-star" />
         <AuthProvider>{children}</AuthProvider>
       </body>
     </html>
